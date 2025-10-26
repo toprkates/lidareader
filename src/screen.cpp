@@ -229,13 +229,13 @@ void drawIntersectionMarker(sf::RenderWindow& window, sf::Font& font,
     addDot(window, 4, true, screenX, screenY, sf::Color::Red);     
     addDot(window, 3, true, screenX, screenY, sf::Color::White);    
     addDot(window, 2, true, screenX, screenY, sf::Color::Red);      
-    
+
     if (showLabel) {
-        std::string angleStr = std::to_string((int)intersection.angle_degrees) + "degree";
+        std::string angleStr = std::to_string((int)intersection.angle_degrees) + "\u00B0";
         std::string distStr = std::to_string((int)(intersection.distance_to_robot * 100)) + "cm";
         std::string label = angleStr + " " + distStr;
         
-        addText(window, font, label, 10, sf::Color::Red, false, 
+        addText(window, font, label, 15, sf::Color::Red, false, 
                screenX + 15, screenY - 5, false);
     }
 }

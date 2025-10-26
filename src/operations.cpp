@@ -47,6 +47,14 @@ std::vector<Point2D> convertToCarterisan(const std::vector<double>& ranges, cons
 
         points.push_back(point);
     }
+    double minX=1e9, maxX=-1e9, minY=1e9, maxY=-1e9;
+    for (auto& p : points) {
+        minX = std::min(minX, p.x);
+        maxX = std::max(maxX, p.x);
+        minY = std::min(minY, p.y);
+        maxY = std::max(maxY, p.y);
+    }
+    std::cout << "Point range X: " << minX << " to " << maxX << " Y: " << minY << " to " << maxY << std::endl;
     return points;
 }   
 
@@ -61,16 +69,22 @@ Line createLineFromPoints(const Point2D& point1, const Point2D& point2) {
     - c = -(a*x1 + b*y1) [using either x1,y1 or x2,y2]
     */
     line.a = point2.y - point1.y;
-    line.b = point2.x - point1.x;
+    line.b = point1.x - point2.x;
     line.c = -(line.a * point1.x + line.b * point1.y);
 
-    // normalize the equation: divide by sqrt(a^2 + b^2)
-    // ensuring consistent distances
+    //normalize the equation: divide by sqrt(a^2 + b^2) to ensure consisten distances
     double norm = std::sqrt(line.a*line.a + line.b*line.b);
     if (norm > almostZero) {    // trying not to divide with zero or near-zero 
         line.a /= norm;
         line.b /= norm;
         line.c /= norm;
+
+        //ensure c is always positive for consistency
+        if (line.c < 0) {
+            line.a = -line.a;
+            line.b = -line.b;
+            line.c = -line.c;
+        }
     }
 
     return line;
@@ -152,7 +166,27 @@ std::vector<int> findInliers(const std::vector<Point2D>& points,
             inliers.push_back(idx);
         }
     }
-    return inliers;
+    double maxGap = 0.5; //max gap for each point is 50cm
+    std::vector<int> filteredInliers;
+
+    for (int idx: inliers) {
+        bool hasNearbyPoint = false;
+        for (int otherIdx: inliers) {
+            if (idx == otherIdx) continue;
+
+            double dx = points[idx].x - points[otherIdx].x;
+            double dy = points[idx].y - points[otherIdx].y;
+            double dist = std::sqrt(dx*dx + dy*dy);
+
+            if (dist < maxGap) {
+                hasNearbyPoint = true;
+                break;
+            }
+        }
+        if (hasNearbyPoint) filteredInliers.push_back(idx);
+    }
+
+    return filteredInliers;
 }
 
 Line findBestLineRANSAC(const std::vector<Point2D>& points,
@@ -169,33 +203,32 @@ Line findBestLineRANSAC(const std::vector<Point2D>& points,
     - Keep the line with most inliers (best fit)
     */
 
-    Line bestLine;      // Will store the best line found
-    bestInliers.clear(); // Clear output parameter
+    Line bestLine;      //best line found will be stored
+    bestInliers.clear(); //clearing the output parameter
     
-    // Random number generator for selecting points
+    //random number generator for selecting points
     std::uniform_int_distribution<> dis(0, availableIndices.size() - 1);
     
-    // Try many random samples (Monte Carlo approach)
+    //trying random samples (Monte Carlo approach)
     for (int iter = 0; iter < config.maxIterations; ++iter) {
         // Randomly select 2 different points
         int idx1 = availableIndices[dis(gen)];
         int idx2 = availableIndices[dis(gen)];
         
-        // Skip if we got the same point twice
+        //skipping if we got the same point twice
         if (idx1 == idx2) continue;
         
-        // Create a candidate line through these two points
+        //creating a candidate line through these two points
         Line candidateLine = createLineFromPoints(points[idx1], points[idx2]);
         
-        // Find all points that fit this line (inliers)
+        //finding all points that fit this line (inliers)
         std::vector<int> inliers = findInliers(points, availableIndices, 
                                                candidateLine, config.distanceThreshold);
         
-        // Keep this line if it's better than previous best
-        // "Better" means more points fit the line
+        //keep this line if it has more points previous
         if (inliers.size() > bestInliers.size()) {
-            bestInliers = inliers;    // Update best inliers
-            bestLine = candidateLine;  // Update best line
+            bestInliers = inliers;    //updating best inliers
+            bestLine = candidateLine;  //updating best line
         }
     }
     
@@ -211,33 +244,33 @@ std::vector<Line> detectLines(const std::vector<Point2D>& points,
     std::random_device rd;
     std::mt19937 gen(rd());
     
-    // Keep finding lines until we run out of points
+    //keep finding lines until running out of points
     while (true) {
-        // Get list of points not yet assigned to any line
+        //get list of points not assigned to any line
         std::vector<int> availableIndices = getAvailableIndices(used);
         
-        // Stop if not enough points remain for a valid line
+        //stop if not enough points remain for a valid line
         if (availableIndices.size() < config.minPoints) {
             break;
         }
         
-        // Find the best line in remaining points
+        //find the best line in remaining points
         std::vector<int> bestInliers;
         Line bestLine = findBestLineRANSAC(points, availableIndices, 
                                           bestInliers, config, gen);
         
-        // Check if we found a valid line (enough inliers)
+        //check if we found a valid line (enough inliers)
         if (bestInliers.size() >= config.minPoints) {
             // Store the line with its inlier points
             bestLine.pointIndices = bestInliers;
             detectedLines.push_back(bestLine);
             
-            // Mark these points as used so we don't use them again
+            //mark these points as used so we don't use them again
             for (int idx : bestInliers) {
                 used[idx] = true;
             }
         } else {
-            // No more valid lines can be found
+            //no more valid lines can be found
             break;
         }
     }
@@ -245,83 +278,81 @@ std::vector<Line> detectLines(const std::vector<Point2D>& points,
     return detectedLines;
 }
 
-//Check if the lines in between
-bool isPointOnLineSegment(const Point2D& point, const Line& line, 
-                          const std::vector<Point2D>& allPoints, 
-                          double tolerance = 0.05) {
-    
-    // Method 1: Check if point is within bounding box (keep this as first filter)
-    double minX = std::numeric_limits<double>::max();
-    double maxX = std::numeric_limits<double>::lowest();
-    double minY = std::numeric_limits<double>::max();
-    double maxY = std::numeric_limits<double>::lowest();
-    
-    for (int idx : line.pointIndices) {
-        minX = std::min(minX, allPoints[idx].x);
-        maxX = std::max(maxX, allPoints[idx].x);
-        minY = std::min(minY, allPoints[idx].y);
-        maxY = std::max(maxY, allPoints[idx].y);
-    }
-    
-    // First check: must be in bounding box
-    if (!(point.x >= minX - tolerance && point.x <= maxX + tolerance &&
-          point.y >= minY - tolerance && point.y <= maxY + tolerance)) {
-        return false;
-    }
-    
-    // Method 2: Check if point is close to ANY of the actual line segment points
-    // Find the closest point on the line segment to the intersection
-    double minDistance = std::numeric_limits<double>::max();
-    for (int idx : line.pointIndices) {
-        double dx = point.x - allPoints[idx].x;
-        double dy = point.y - allPoints[idx].y;
-        double dist = std::sqrt(dx*dx + dy*dy);
-        minDistance = std::min(minDistance, dist);
-    }
-    
-    // The intersection should be reasonably close to at least one actual point
-    return minDistance <= tolerance * 2;  // Allow some buffer
+//classic intersection test using linear algebra
+bool isOnSegment(const Line& line1, const Line& line2, const std::vector<Point2D>& allPoints) {
+    Point2D l1Start = allPoints[line1.pointIndices.front()];
+    Point2D l1End   = allPoints[line1.pointIndices.back()];
+    Point2D l2Start = allPoints[line2.pointIndices.front()];
+    Point2D l2End   = allPoints[line2.pointIndices.back()];
+
+    auto onSegment = [](Point2D p, Point2D q, Point2D r) {
+        return q.x <= std::max(p.x, r.x) && q.x >= std::min(p.x, r.x) &&
+               q.y <= std::max(p.y, r.y) && q.y >= std::min(p.y, r.y);
+    };
+
+    auto orientation = [](Point2D p, Point2D q, Point2D r) {
+        /*check the area of the three points with 
+        -   |q.x-p.x  q.y-p.y|
+        -   |r.x-q.x  r.y-q.y|
+        - this also gives us the direction of the points, if they are lined up clockwise or not
+        */
+        double val = (q.y - p.y)*(r.x - q.x) - (q.x - p.x)*(r.y - q.y);
+        if (std::fabs(val) < almostZero) return 0; //collinear
+        return (val > 0) ? 1 : 2; //clock or counterclockwise
+    };
+
+    int o1 = orientation(l1Start, l1End, l2Start);
+    int o2 = orientation(l1Start, l1End, l2End);
+    int o3 = orientation(l2Start, l2End, l1Start);
+    int o4 = orientation(l2Start, l2End, l1End);
+
+    //general intersection case
+    if (o1 != o2 && o3 != o4) return true;
+
+    //special collinear cases
+    if (o1 == 0 && onSegment(l1Start, l2Start, l1End)) return true;
+    if (o2 == 0 && onSegment(l1Start, l2End, l1End)) return true;
+    if (o3 == 0 && onSegment(l2Start, l1Start, l2End)) return true;
+    if (o4 == 0 && onSegment(l2Start, l1End, l2End)) return true;
+
+    return false;
 }
 
 
 std::vector<Intersection> findValidIntersections(const std::vector<Line>& lines, 
                         const std::vector<Point2D>& points, double minAngleThreshold) {
     std::vector<Intersection> validIntersections;
-    
+
     // Check every pair of lines (combinatorial: n choose 2)
     for (size_t i = 0; i < lines.size(); ++i) {
         for (size_t j = i + 1; j < lines.size(); ++j) {
             Point2D point;
-            
-            // Try to find where these two lines intersect
-            if (!computeLineIntersection(lines[i], lines[j], point)) {
-                continue;  // Lines are parallel - no intersection
-            }
 
-            if (!isPointOnLineSegment(point, lines[i], points) ||
-                !isPointOnLineSegment(point, lines[j], points)) {
-                continue;  // Intersection exists but not within actual segments
-            }
-            
+            // Try to find where these two lines intersect
+            if (!computeLineIntersection(lines[i], lines[j], point))
+                continue;  // Lines are parallel - no intersection
+                        
+            if (!isOnSegment(lines[i], lines[j], points))
+                continue;
+
             // Calculate the angle between the two lines
             double angle = computeAngleBetweenLines(lines[i], lines[j]);
             
             // Only keep intersections with sharp enough angles
             // This filters out near-parallel line intersections
-            if (angle >= minAngleThreshold) {
+            if (angle >= minAngleThreshold || angle <= 90 - minAngleThreshold) {
                 // Create intersection record with all relevant data
                 Intersection inter;
-                inter.point = point;                           // Where lines meet
-                inter.line1_idx = i;                          // Index of first line
-                inter.line2_idx = j;                          // Index of second line
-                inter.angle_degrees = angle;                   // Angle between lines
+                inter.point = point;  // Where lines meet
+                inter.line1_idx = i;  // Index of first line
+                inter.line2_idx = j;  // Index of second line
+                if (angle >= minAngleThreshold) inter.angle_degrees = angle;
+                else if (angle <= (90 - minAngleThreshold)) inter.angle_degrees = 90 - angle;
                 inter.distance_to_robot = distanceToOrigin(point); // How far from robot
                 
                 validIntersections.push_back(inter);
             }
         }
     }
-    
     return validIntersections;
 }
-

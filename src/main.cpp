@@ -75,10 +75,10 @@ int main() {
     RANSACparameters ransacConfig;
     ransacConfig.minPoints = 8;              // Minimum points to form a line
     ransacConfig.distanceThreshold = 0.01;   // 1 cm tolerance
-    ransacConfig.maxIterations = 5*10000;       // Number of random samples
+    ransacConfig.maxIterations = 10*10000;       // Number of random samples
 
     std::vector<Line> detectedLines = detectLines(dotsPOS, ransacConfig);
-    std::vector<Intersection> validIntersections = findValidIntersections(detectedLines, dotsPOS, 45.0);
+    std::vector<Intersection> validIntersections = findValidIntersections(detectedLines, dotsPOS, 60.0);
 
     std::cout << "\n=== RANSAC Results ===" << std::endl;
     std::cout << "Points: " << dotsPOS.size() << std::endl;
@@ -91,7 +91,9 @@ int main() {
     
     float screenX = convertCoordinateX(inter.point.x, gridscale);
     float screenY = convertCoordinateY(inter.point.y, gridscale);
-    
+
+    std::cout << "Line I: " << detectedLines[inter.line1_idx].a << "x + "<< detectedLines[inter.line1_idx].b << "y + " << detectedLines[inter.line1_idx].c << std::endl;
+    std::cout << "Line II: " << detectedLines[inter.line2_idx].a << "x + "<< detectedLines[inter.line2_idx].b << "y + " << detectedLines[inter.line2_idx].c << std::endl;
     std::cout << "  Screen coords: (" << screenX << ", " << screenY << ")\n";
     std::cout << "  Between lines: " << inter.line1_idx+1 << " and " << inter.line2_idx+1 << "\n";
     std::cout << "  Angle: " << inter.angle_degrees << " degrees\n\n";
