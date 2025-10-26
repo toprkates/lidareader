@@ -3,7 +3,6 @@
 #include <SFML/System.hpp>
 #include <vector>
 #include <string>
-#include <fstream>
 
 #include "constants.h"
 #include "file_read.h"
@@ -65,35 +64,21 @@ void drawUIElements(sf::RenderWindow& window, sf::Font& arial) {
             false, margin_X-50.f, screen_Y/2, false);
 }
 
-int main(int argc, char* argv[])  // Paramterleri disaridan alicak ve curl ile calisabilicek
-{
-    if (argc < 2) {
-        std::cerr << "Hata: TOML dosya adi belirtilmedi." << "Kullanim: " << argv[0] << " <dosya_adi.toml>" << std::endl;
-        return 1;
-    }
-
-    std::string filename = argv[1];
-    std::ifstream file(filename);
-
-    if (!file.is_open()) // dosya acilmaz ise kullaniciya hata mesaji ver ve 1 return'le
-    {
-        std::cerr << "Hata: " << filename << " Dosyasi acilamadi." << std::endl;
-        return 1;
-    }
+int main() {
     //Load the Head of the File, Lidar Scanned Parameters, Ranges and Intensities
-    Header header = readHeader(filename);
-    Scan scan = readScan(filename);
-    std::vector<double> rangesPositions = readRanges(filename);
-    std::vector<double> intensities = readIntensities(filename);
+    Header header = readHeader(TEST_DATA);
+    Scan scan = readScan(TEST_DATA);
+    std::vector<double> rangesPositions = readRanges(TEST_DATA);
+    std::vector<double> intensities = readIntensities(TEST_DATA);
     std::vector<Point2D> dotsPOS = convertToCarterisan(rangesPositions, scan);
 
     RANSACparameters ransacConfig;
     ransacConfig.minPoints = 8;              // Minimum points to form a line
-    ransacConfig.distanceThreshold = 0.00850;   // 0.85 cm tolerance
-    ransacConfig.maxIterations = 5*10000;       // Number of random samples
+    ransacConfig.distanceThreshold = 0.01;   // 1 cm tolerance
+    ransacConfig.maxIterations = 10*10000;       // Number of random samples
 
     std::vector<Line> detectedLines = detectLines(dotsPOS, ransacConfig);
-    std::vector<Intersection> validIntersections = findValidIntersections(detectedLines, 60.0);
+    std::vector<Intersection> validIntersections = findValidIntersections(detectedLines, dotsPOS, 60.0);
 
     std::cout << "\n=== RANSAC Results ===" << std::endl;
     std::cout << "Points: " << dotsPOS.size() << std::endl;
@@ -106,9 +91,11 @@ int main(int argc, char* argv[])  // Paramterleri disaridan alicak ve curl ile c
     
     float screenX = convertCoordinateX(inter.point.x, gridscale);
     float screenY = convertCoordinateY(inter.point.y, gridscale);
-    
+
+    std::cout << "Line I: " << detectedLines[inter.line1_idx].a << "x + "<< detectedLines[inter.line1_idx].b << "y + " << detectedLines[inter.line1_idx].c << std::endl;
+    std::cout << "Line II: " << detectedLines[inter.line2_idx].a << "x + "<< detectedLines[inter.line2_idx].b << "y + " << detectedLines[inter.line2_idx].c << std::endl;
     std::cout << "  Screen coords: (" << screenX << ", " << screenY << ")\n";
-    std::cout << "  Between lines: " << inter.line1_idx << " and " << inter.line2_idx << "\n";
+    std::cout << "  Between lines: " << inter.line1_idx+1 << " and " << inter.line2_idx+1 << "\n";
     std::cout << "  Angle: " << inter.angle_degrees << " degrees\n\n";
     }
 
@@ -117,7 +104,7 @@ int main(int argc, char* argv[])  // Paramterleri disaridan alicak ve curl ile c
 
     //loading font
     sf::Font arial;
-    if (!arial.openFromFile("../assets/visuals/arial.ttf")) {
+    if (!arial.openFromFile("assets/visuals/arial.ttf")) {
         std::cerr << "Font Arial could not be opened" << std::endl;
         return -1;
     }

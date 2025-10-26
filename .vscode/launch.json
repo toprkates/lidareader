@@ -1,0 +1,18 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Run C++ exe",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/bin/main.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "preLaunchTask": "C/C++: g++.exe build active file",
+            "MIMode": "gdb",
+            "miDebuggerPath": "C:/msys64/ucrt64/bin/gdb.exe",
+        }
+    ]
+}
