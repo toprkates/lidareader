@@ -245,8 +245,47 @@ std::vector<Line> detectLines(const std::vector<Point2D>& points,
     return detectedLines;
 }
 
+//Check if the lines in between
+bool isPointOnLineSegment(const Point2D& point, const Line& line, 
+                          const std::vector<Point2D>& allPoints, 
+                          double tolerance = 0.05) {
+    
+    // Method 1: Check if point is within bounding box (keep this as first filter)
+    double minX = std::numeric_limits<double>::max();
+    double maxX = std::numeric_limits<double>::lowest();
+    double minY = std::numeric_limits<double>::max();
+    double maxY = std::numeric_limits<double>::lowest();
+    
+    for (int idx : line.pointIndices) {
+        minX = std::min(minX, allPoints[idx].x);
+        maxX = std::max(maxX, allPoints[idx].x);
+        minY = std::min(minY, allPoints[idx].y);
+        maxY = std::max(maxY, allPoints[idx].y);
+    }
+    
+    // First check: must be in bounding box
+    if (!(point.x >= minX - tolerance && point.x <= maxX + tolerance &&
+          point.y >= minY - tolerance && point.y <= maxY + tolerance)) {
+        return false;
+    }
+    
+    // Method 2: Check if point is close to ANY of the actual line segment points
+    // Find the closest point on the line segment to the intersection
+    double minDistance = std::numeric_limits<double>::max();
+    for (int idx : line.pointIndices) {
+        double dx = point.x - allPoints[idx].x;
+        double dy = point.y - allPoints[idx].y;
+        double dist = std::sqrt(dx*dx + dy*dy);
+        minDistance = std::min(minDistance, dist);
+    }
+    
+    // The intersection should be reasonably close to at least one actual point
+    return minDistance <= tolerance * 2;  // Allow some buffer
+}
+
+
 std::vector<Intersection> findValidIntersections(const std::vector<Line>& lines, 
-                                                double minAngleThreshold) {
+                        const std::vector<Point2D>& points, double minAngleThreshold) {
     std::vector<Intersection> validIntersections;
     
     // Check every pair of lines (combinatorial: n choose 2)
@@ -257,6 +296,11 @@ std::vector<Intersection> findValidIntersections(const std::vector<Line>& lines,
             // Try to find where these two lines intersect
             if (!computeLineIntersection(lines[i], lines[j], point)) {
                 continue;  // Lines are parallel - no intersection
+            }
+
+            if (!isPointOnLineSegment(point, lines[i], points) ||
+                !isPointOnLineSegment(point, lines[j], points)) {
+                continue;  // Intersection exists but not within actual segments
             }
             
             // Calculate the angle between the two lines

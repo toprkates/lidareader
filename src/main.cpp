@@ -78,7 +78,7 @@ int main() {
     ransacConfig.maxIterations = 5*10000;       // Number of random samples
 
     std::vector<Line> detectedLines = detectLines(dotsPOS, ransacConfig);
-    std::vector<Intersection> validIntersections = findValidIntersections(detectedLines, 60.0);
+    std::vector<Intersection> validIntersections = findValidIntersections(detectedLines, dotsPOS, 45.0);
 
     std::cout << "\n=== RANSAC Results ===" << std::endl;
     std::cout << "Points: " << dotsPOS.size() << std::endl;
@@ -93,7 +93,7 @@ int main() {
     float screenY = convertCoordinateY(inter.point.y, gridscale);
     
     std::cout << "  Screen coords: (" << screenX << ", " << screenY << ")\n";
-    std::cout << "  Between lines: " << inter.line1_idx << " and " << inter.line2_idx << "\n";
+    std::cout << "  Between lines: " << inter.line1_idx+1 << " and " << inter.line2_idx+1 << "\n";
     std::cout << "  Angle: " << inter.angle_degrees << " degrees\n\n";
     }
 

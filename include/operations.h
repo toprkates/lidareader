@@ -32,5 +32,5 @@ Line findBestLineRANSAC(const std::vector<Point2D>& points,
 std::vector<Line> detectLines(const std::vector<Point2D>& points, 
                               const RANSACparameters& config);
 std::vector<Intersection> findValidIntersections(const std::vector<Line>& lines, 
-                                                double minAngleThreshold);
+                        const std::vector<Point2D>& points, double minAngleThreshold);
 #endif
