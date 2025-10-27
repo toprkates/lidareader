@@ -2,8 +2,48 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <curl/curl.h>
 
 #include "file_read.h"
+
+// Callback function to write received data
+size_t writeCallback(void* contents, size_t size, size_t nmemb, void* userp) {
+    ((std::string*)userp)->append((char*)contents, size * nmemb);
+    return size * nmemb;
+}
+
+bool downloadTomlFile(const std::string& url, const std::string& localPath) {
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+        std::cerr << "CURL initialization failed" << std::endl;
+        return false;
+    }
+
+    std::string response;
+    
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeCallback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    
+    CURLcode res = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
+
+    if (res != CURLE_OK) {
+        std::cerr << "Download failed: " << curl_easy_strerror(res) << std::endl;
+        return false;
+    }
+
+    std::ofstream outFile(localPath);
+    if (!outFile) {
+        std::cerr << "Could not create local file" << std::endl;
+        return false;
+    }
+
+    outFile << response;
+    outFile.close();
+    return true;
+}
 
 //trims the string
 std::string trim(const std::string& s) {

@@ -3,6 +3,7 @@
 #include <SFML/System.hpp>
 #include <vector>
 #include <string>
+#include <filesystem>
 
 #include "constants.h"
 #include "file_read.h"
@@ -10,7 +11,8 @@
 #include "screen.h"
 
 #define TEST_DATA "scan_data_NaN.toml"
-
+#define DOWNLOAD_URL "https://gist.githubusercontent.com/Mermalat/9b923dd7b053aa442fbc73b0f9d5d28a/raw/337861cf6c0a9ec2dcdf7a3cfbe119a19924e995/sdata"
+#define DOWNLOADED_FILE "downloaded_lidar.toml"
 
 void drawAllLines(sf::RenderWindow& window, sf::Font& arial,
                   const std::vector<Point2D>& dotsPOS,
@@ -65,11 +67,21 @@ void drawUIElements(sf::RenderWindow& window, sf::Font& arial) {
 }
 
 int main() {
+    // Download TOML file from web
+    std::cout << "Downloading TOML file from: " << DOWNLOAD_URL << std::endl;
+    if (!downloadTomlFile(DOWNLOAD_URL, DOWNLOADED_FILE)) {
+        std::cerr << "Failed to download TOML file. Using local test data instead." << std::endl;
+    }
+
+    // Choose which file to use - downloaded or local test data
+    const std::string dataFile = std::filesystem::exists(DOWNLOADED_FILE) ? DOWNLOADED_FILE : TEST_DATA;
+    std::cout << "Using data file: " << dataFile << std::endl;
+
     //Load the Head of the File, Lidar Scanned Parameters, Ranges and Intensities
-    Header header = readHeader(TEST_DATA);
-    Scan scan = readScan(TEST_DATA);
-    std::vector<double> rangesPositions = readRanges(TEST_DATA);
-    std::vector<double> intensities = readIntensities(TEST_DATA);
+    Header header = readHeader(dataFile);
+    Scan scan = readScan(dataFile);
+    std::vector<double> rangesPositions = readRanges(dataFile);
+    std::vector<double> intensities = readIntensities(dataFile);
     std::vector<Point2D> dotsPOS = convertToCarterisan(rangesPositions, scan);
 
     RANSACparameters ransacConfig;
